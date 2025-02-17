@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 from pathlib import Path
 import os
-from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,7 +29,7 @@ FT_CLIENT_ID = 'u-s4t2ud-b855b6816874401e5044c60fa9f6f223acc039deaf9853f85d6a0a5
 FT_CLIENT_SECRET = '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'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = 'True'
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = []
 
@@ -38,11 +37,6 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    'channels',
-    'daphne',
-
-    'chat.apps.ChatConfig',
-
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -50,7 +44,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'accounts',
-    'authentification'
 ]
 
 MIDDLEWARE = [
@@ -154,7 +147,8 @@ LOGOUT_REDIRECT_URL = "home"
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 
-AUTH_USER_MODEL = 'authentification.User'
+AUTH_USER_MODEL = 'accounts.User'
+
 # URL de redirection vers l'autorisation 42
 AUTHORIZE_URL = 'https://api.intra.42.fr/oauth/authorize'
 TOKEN_URL = 'https://api.intra.42.fr/oauth/token'
@@ -164,11 +158,3 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     # Ajoutez ici d'autres backends si nécessaire
 ]
-
-# Channels
-ASGI_APPLICATION = 'django_project.asgi.application'
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer'
-    }
-}

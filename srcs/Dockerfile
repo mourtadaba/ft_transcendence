@@ -27,8 +27,3 @@ EXPOSE 8000
 
 # Copy project
 COPY . .
-
-# pour executer le fichier des migrations
-COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
-CMD ["./entrypoint.sh"]
