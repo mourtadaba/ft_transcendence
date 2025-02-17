@@ -33,7 +33,7 @@ Arrêter tous les conteneurs en cours d'exécution
 Supprimer tous les conteneurs arrêtés
     docker rm $(docker ps -a -q)    
 
-Arrêter et supprimer tous les conteneurs en une seule commande
+Arrêter et supprimer tous les conteneurs en une seule commande:
     docker stop $(docker ps -q) && docker rm $(docker ps -a -q)
 
 
