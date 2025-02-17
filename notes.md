@@ -33,7 +33,7 @@ Arrêter tous les conteneurs en cours d'exécution
 Supprimer tous les conteneurs arrêtés
     docker rm $(docker ps -a -q)    
 
-Arrêter et supprimer tous les conteneurs en une seule commande
+Arrêter et supprimer tous les conteneurs en une seule commande:      
     docker stop $(docker ps -q) && docker rm $(docker ps -a -q)
 
 
@@ -57,7 +57,3 @@ Pour accéder au shell Django dans Docker:
 
 Arrêtez le service PostgreSQL local s'il tourne :
     sudo service postgresql stop
-
-Migrations
-    docker-compose exec web-1 python manage.py makemigrations
-    docker-compose exec web-1 python manage.py migrate
