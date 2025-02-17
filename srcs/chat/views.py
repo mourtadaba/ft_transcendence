@@ -12,23 +12,6 @@ from django.db import IntegrityError
 
 User = get_user_model()
 
-# @login_required(login_url='/')
-# def chat_view(request):
-#     user_profile = UserProfile.objects.get(user=request.user)
-#     blocked_users = user_profile.blocked_users.all()
-
-#     users = User.objects.exclude(id=request.user.id).exclude(id__in=blocked_users)
-#     # Les messages seront filtrés dans le template selon l'utilisateur sélectionné
-#     messages = Message.objects.filter(
-#         (Q(sender=request.user) | Q(recipient=request.user)) &
-#         ~Q(sender__in=blocked_users)
-#     ).order_by('timestamp')
-#     return render(request, 'chat/chat.html', {
-#         'messages': messages,
-#         'blocked_users': blocked_users,
-#         'users': users
-#     })
-
 @login_required
 def chat_view(request):
     user_profile = UserProfile.objects.get(user=request.user)
@@ -139,6 +122,83 @@ def unblock_user(request, user_id):
     request.user.userprofile.blocked_users.remove(user_to_unblock)
     return JsonResponse({'status': 'success'})
 
+# @login_required
+# def send_game_invite(request, user_id):
+#     from channels.layers import get_channel_layer
+#     from asgiref.sync import async_to_sync
+    
+#     recipient = get_object_or_404(User, id=user_id)
+
+#     # Vérifier si l'utilisateur est bloqué
+#     if recipient in request.user.userprofile.blocked_users.all():
+#         return JsonResponse({
+#             'status': 'error',
+#             'message': 'Vous ne pouvez pas envoyer d\'invitation à un utilisateur bloqué'
+#         })
+    
+#     # Vérifier si l'utilisateur nous a bloqué
+#     if request.user in recipient.userprofile.blocked_users.all():
+#         return JsonResponse({
+#             'status': 'error',
+#             'message': 'Vous ne pouvez pas envoyer d\'invitation à cet utilisateur'
+#         })
+    
+#     try:
+#         # Vérifier si une invitation en attente existe déjà
+#         existing_invite = GameInvite.objects.filter(
+#             sender=request.user,
+#             recipient=recipient,
+#             status='pending'
+#         ).exists()
+        
+#         if existing_invite:
+#             return JsonResponse({
+#                 'status': 'error',
+#                 'message': 'Une invitation est déjà en attente'
+#             })
+            
+#         # Créer la nouvelle invitation
+#         invite = GameInvite.objects.create(
+#             sender=request.user,
+#             recipient=recipient,
+#             status='pending'
+#         )
+        
+#         # Envoyer la notification via WebSocket
+#         channel_layer = get_channel_layer()
+#         async_to_sync(channel_layer.group_send)(
+#             f"user_{recipient.id}",  # S'assurer que ce groupe correspond à celui dans consumers.py
+#             {
+#                 "type": "game_invite",
+#                 "sender": request.user.username,
+#                 "sender_id": request.user.id,
+#                 "recipient_id": recipient.id,
+#                 "message": f"{request.user.username} vous invite à jouer"
+#             }
+#         )
+        
+#         return JsonResponse({
+#             'status': 'success',
+#             'message': f'Invitation envoyée à {recipient.username}'
+#         })
+    
+#     except IntegrityError:
+
+#         return JsonResponse({
+
+#             'status': 'error',
+
+#             'message': 'Une invitation est déjà en attente'
+
+#         })
+        
+#     except Exception as e:
+#         print(f"Erreur lors de l'envoi de l'invitation: {str(e)}")  # Ajout d'un log pour le débogage
+#         return JsonResponse({
+#             'status': 'error',
+#             'message': str(e)
+#         })
+
 @login_required
 def send_game_invite(request, user_id):
     from channels.layers import get_channel_layer
@@ -161,18 +221,24 @@ def send_game_invite(request, user_id):
         })
     
     try:
+        # Nettoyer les invitations expirées
+        GameInvite.clean_expired_invites()
+        
         # Vérifier si une invitation en attente existe déjà
         existing_invite = GameInvite.objects.filter(
             sender=request.user,
             recipient=recipient,
             status='pending'
-        ).exists()
+        ).first()
         
         if existing_invite:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Une invitation est déjà en attente'
-            })
+            if existing_invite.is_expired:
+                existing_invite.delete()
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Une invitation est déjà en attente'
+                })
             
         # Créer la nouvelle invitation
         invite = GameInvite.objects.create(
@@ -183,34 +249,31 @@ def send_game_invite(request, user_id):
         
         # Envoyer la notification via WebSocket
         channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"user_{recipient.id}",  # S'assurer que ce groupe correspond à celui dans consumers.py
-            {
-                "type": "game_invite",
-                "sender": request.user.username,
-                "sender_id": request.user.id,
-                "recipient_id": recipient.id,
-                "message": f"{request.user.username} vous invite à jouer"
-            }
-        )
-        
-        return JsonResponse({
-            'status': 'success',
-            'message': f'Invitation envoyée à {recipient.username}'
-        })
+        try:
+            async_to_sync(channel_layer.group_send)(
+                f"user_{recipient.id}",
+                {
+                    "type": "game_invite",
+                    "sender": request.user.username,
+                    "sender_id": request.user.id,
+                    "recipient_id": recipient.id,
+                    "message": f"{request.user.username} vous invite à jouer"
+                }
+            )
+            return JsonResponse({
+                'status': 'success',
+                'message': f'Invitation envoyée à {recipient.username}'
+            })
+        except Exception as ws_error:
+            # Si l'envoi du message WebSocket échoue, on supprime l'invitation
+            invite.delete()
+            return JsonResponse({
+                'status': 'error',
+                'message': 'L\'utilisateur n\'est pas en ligne actuellement'
+            })
     
-    except IntegrityError:
-
-        return JsonResponse({
-
-            'status': 'error',
-
-            'message': 'Une invitation est déjà en attente'
-
-        })
-        
     except Exception as e:
-        print(f"Erreur lors de l'envoi de l'invitation: {str(e)}")  # Ajout d'un log pour le débogage
+        print(f"Erreur lors de l'envoi de l'invitation: {str(e)}")
         return JsonResponse({
             'status': 'error',
             'message': str(e)

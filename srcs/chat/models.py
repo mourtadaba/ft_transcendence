@@ -2,6 +2,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -28,6 +29,32 @@ class Message(models.Model):
     def __str__(self):
         return self.content
     
+# class GameInvite(models.Model):
+#     sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='sent_invites', on_delete=models.CASCADE)
+#     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='received_invites', on_delete=models.CASCADE)
+#     timestamp = models.DateTimeField(default=timezone.now)
+#     status = models.CharField(max_length=20, choices=[
+#         ('pending', 'Pending'),
+#         ('accepted', 'Accepted'),
+#         ('rejected', 'Declined')
+#     ], default='pending')
+
+#     class Meta:
+#         # Contrainte unique modifiée pour inclure le timestamp
+#         unique_together = ('sender', 'recipient', 'status', 'timestamp')
+#         indexes = [
+#             models.Index(fields=['sender', 'recipient', 'status'])
+#         ]
+        
+#     def __str__(self):
+#         return f"{self.sender} -> {self.recipient} ({self.status})"
+
+
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
+
 class GameInvite(models.Model):
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='sent_invites', on_delete=models.CASCADE)
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='received_invites', on_delete=models.CASCADE)
@@ -37,16 +64,27 @@ class GameInvite(models.Model):
         ('accepted', 'Accepted'),
         ('rejected', 'Declined')
     ], default='pending')
-
+    
     class Meta:
-        # Contrainte unique modifiée pour inclure le timestamp
-        unique_together = ('sender', 'recipient', 'status', 'timestamp')
         indexes = [
-            models.Index(fields=['sender', 'recipient', 'status'])
+            models.Index(fields=['sender', 'recipient', 'status', 'timestamp'])
         ]
         
     def __str__(self):
         return f"{self.sender} -> {self.recipient} ({self.status})"
+    
+    @property
+    def is_expired(self):
+        return timezone.now() > self.timestamp + timedelta(minutes=5)
+    
+    @classmethod
+    def clean_expired_invites(cls):
+        expired_time = timezone.now() - timedelta(minutes=5)
+        cls.objects.filter(
+            status='pending',
+            timestamp__lt=expired_time
+        ).delete()
+
 
 class Tournament(models.Model):
     name = models.CharField(max_length=100)

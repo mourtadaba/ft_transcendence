@@ -326,6 +326,7 @@ function sendGameInvite(userId) {
         } else {
             showSystemMessage(data.message || 'Erreur lors de l\'envoi de l\'invitation');
             button.disabled = false;
+            button.textContent = 'Inviter';
         }
     })
     .catch(error => {
